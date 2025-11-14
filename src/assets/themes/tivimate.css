@@ -1,0 +1,27 @@
+.theme-tivimate {
+  --primary: #2196f3;
+  --accent: #ffc107;
+  --background: #0a0a0a;
+  --surface: #1a1a1a;
+  --list-height: 64px;
+  --spacing: 8px;
+}
+
+.theme-tivimate .list-view {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.theme-tivimate .list-item {
+  display: flex;
+  align-items: center;
+  height: 64px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-left: 3px solid transparent;
+}
+
+.theme-tivimate .list-item:hover {
+  border-left-color: var(--primary);
+}
