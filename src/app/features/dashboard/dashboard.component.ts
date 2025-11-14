@@ -20,6 +20,7 @@ import { AuthService } from '../../core/services/auth.service';
       <nav class="nav">
         <a routerLink="/dashboard/accounts" routerLinkActive="active">Accounts</a>
         <a routerLink="/dashboard/content" routerLinkActive="active">Content</a>
+        <a routerLink="/dashboard/sync-demo" routerLinkActive="active">Sync Demo</a>
       </nav>
       
       <main class="content">

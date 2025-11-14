@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, effect } from '@angular/core';
+import { Injectable, signal, computed, effect, inject, DestroyRef } from '@angular/core';
 
 export enum AppTheme {
   SMARTERS = 'smarters',
@@ -7,6 +7,8 @@ export enum AppTheme {
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
+  private readonly destroyRef = inject(DestroyRef);
+  
   readonly currentTheme = signal<AppTheme>(
     this.getStoredTheme() || AppTheme.SMARTERS
   );
@@ -16,15 +18,23 @@ export class ThemeService {
   );
 
   constructor() {
-    effect(() => {
-      const theme = this.currentTheme();
-      document.body.className = `theme-${theme}`;
+    // Apply initial theme
+    document.body.className = `theme-${this.currentTheme()}`;
+    
+    // Watch for theme changes
+    this.destroyRef.onDestroy(() => {
+      // Cleanup if needed
     });
+  }
+  
+  private applyTheme(): void {
+    document.body.className = `theme-${this.currentTheme()}`;
   }
 
   setTheme(theme: AppTheme): void {
     this.currentTheme.set(theme);
     localStorage.setItem('app-theme', theme);
+    this.applyTheme();
   }
 
   private getStoredTheme(): AppTheme | null {

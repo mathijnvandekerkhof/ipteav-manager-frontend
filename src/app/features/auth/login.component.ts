@@ -1,9 +1,8 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../../core/services/auth.service';
-import { HealthService } from '../../core/services/health.service';
 
 @Component({
   selector: 'app-login',
@@ -13,24 +12,6 @@ import { HealthService } from '../../core/services/health.service';
     <div class="login-container">
       <div class="login-card">
         <h1>IPTeaV Manager</h1>
-        
-        <div class="server-status">
-          <div class="status-indicator" [class]="'status-' + serverStatus().toLowerCase()">
-            <span class="status-dot"></span>
-            <span class="status-text">
-              @switch (serverStatus()) {
-                @case ('UP') { 
-                  Server Online
-                  @if (serverInfo()) {
-                    <small> - v{{ serverInfo()!.version }}</small>
-                  }
-                }
-                @case ('DOWN') { Server Offline }
-                @case ('CHECKING') { Checking... }
-              }
-            </span>
-          </div>
-        </div>
         
         <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
           <div class="form-group">
@@ -127,96 +108,22 @@ import { HealthService } from '../../core/services/health.service';
       text-align: center;
       margin-bottom: 1rem;
     }
-    
-    .server-status {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-    
-    .status-indicator {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 14px;
-      font-weight: 500;
-    }
-    
-    .status-up {
-      background: rgba(76, 175, 80, 0.1);
-      color: #4caf50;
-      border: 1px solid rgba(76, 175, 80, 0.3);
-    }
-    
-    .status-down {
-      background: rgba(244, 67, 54, 0.1);
-      color: #f44336;
-      border: 1px solid rgba(244, 67, 54, 0.3);
-    }
-    
-    .status-checking {
-      background: rgba(255, 193, 7, 0.1);
-      color: #ffc107;
-      border: 1px solid rgba(255, 193, 7, 0.3);
-    }
-    
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-    
-    .status-text small {
-      opacity: 0.8;
-      font-weight: normal;
-    }
-    
-    .status-checking .status-dot {
-      animation: pulse 1.5s infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
   `]
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly healthService = inject(HealthService);
   
   readonly loading = signal(false);
   readonly errorMessage = signal('');
-  readonly serverStatus = this.healthService.serverStatus;
-  readonly serverInfo = signal<{version: string, timestamp: string, message: string} | null>(null);
   
   readonly loginForm = this.fb.nonNullable.group({
     username: ['', Validators.required],
     password: ['', Validators.required]
   });
 
-  ngOnInit(): void {
-    this.healthService.checkHealth().subscribe({
-      next: (info) => {
-        this.serverInfo.set({
-          version: info.version,
-          timestamp: info.timestamp,
-          message: info.message
-        });
-      },
-      error: () => {
-        this.serverInfo.set({
-          version: 'Unknown',
-          timestamp: new Date().toISOString(),
-          message: 'Server not reachable'
-        });
-      }
-    });
-  }
+
 
   onSubmit(): void {
     if (this.loginForm.invalid) return;

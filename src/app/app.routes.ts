@@ -13,7 +13,8 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'accounts', pathMatch: 'full' },
       { path: 'accounts', loadComponent: () => import('./features/accounts/accounts.component').then(m => m.AccountsComponent) },
-      { path: 'content', loadComponent: () => import('./features/content/content.component').then(m => m.ContentComponent) }
+      { path: 'content', loadComponent: () => import('./features/content/content.component').then(m => m.ContentComponent) },
+      { path: 'sync-demo', loadComponent: () => import('./features/sync-demo/sync-demo.component').then(m => m.SyncDemoComponent) }
     ]
   },
   { path: '**', redirectTo: '/login' }

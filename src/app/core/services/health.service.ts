@@ -1,6 +1,6 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject, signal, OnDestroy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, catchError, of, tap, map } from 'rxjs';
+import { Observable, catchError, of, tap, map, interval, switchMap, startWith } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface ServerStatus {
@@ -11,10 +11,12 @@ export interface ServerStatus {
 }
 
 @Injectable({ providedIn: 'root' })
-export class HealthService {
+export class HealthService implements OnDestroy {
   private readonly http = inject(HttpClient);
+  private pollSubscription?: any;
   
   readonly serverStatus = signal<'UP' | 'DOWN' | 'CHECKING'>('CHECKING');
+  readonly serverInfo = signal<{version: string, timestamp: string, message: string} | null>(null);
 
   checkHealth(): Observable<ServerStatus> {
     this.serverStatus.set('CHECKING');
@@ -24,9 +26,19 @@ export class HealthService {
         map(response => response.data),
         tap(status => {
           this.serverStatus.set(status.status === 'ONLINE' ? 'UP' : 'DOWN');
+          this.serverInfo.set({
+            version: status.version,
+            timestamp: status.timestamp,
+            message: status.message
+          });
         }),
         catchError(() => {
           this.serverStatus.set('DOWN');
+          this.serverInfo.set({
+            version: 'Unknown',
+            timestamp: new Date().toISOString(),
+            message: 'Server not reachable'
+          });
           return of({ 
             status: 'OFFLINE', 
             version: 'Unknown', 
@@ -35,5 +47,29 @@ export class HealthService {
           });
         })
       );
+  }
+
+  startPolling(): void {
+    if (this.pollSubscription) {
+      this.pollSubscription.unsubscribe();
+    }
+    
+    this.pollSubscription = interval(30000)
+      .pipe(
+        startWith(0),
+        switchMap(() => this.checkHealth())
+      )
+      .subscribe();
+  }
+
+  stopPolling(): void {
+    if (this.pollSubscription) {
+      this.pollSubscription.unsubscribe();
+      this.pollSubscription = undefined;
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.stopPolling();
   }
 }
