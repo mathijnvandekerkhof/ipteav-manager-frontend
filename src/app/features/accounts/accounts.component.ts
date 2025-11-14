@@ -110,10 +110,10 @@ export class AccountsComponent implements OnInit {
   readonly editingAccount = signal<Account | null>(null);
 
   
-  readonly accountForm = this.fb.nonNullable.group({
+  readonly accountForm = this.fb.group({
     name: ['', Validators.required],
     host: ['', Validators.required],
-    port: [null as number | null, [Validators.min(1), Validators.max(65535)]],
+    port: [8080, [Validators.min(1), Validators.max(65535)]],
     username: ['', Validators.required],
     password: ['', Validators.required]
   });
@@ -128,9 +128,14 @@ export class AccountsComponent implements OnInit {
     this.creating.set(true);
     const formValue = this.accountForm.getRawValue();
     const request: CreateAccountRequest = {
-      ...formValue,
-      port: formValue.port || undefined
+      name: formValue.name!,
+      host: formValue.host!,
+      port: formValue.port || 8080,
+      username: formValue.username!,
+      password: formValue.password!
     };
+    
+    console.log('Sending request:', request);
     
     const operation = this.editingAccount() 
       ? this.accountService.updateAccount(this.editingAccount()!.id, request)
@@ -138,7 +143,10 @@ export class AccountsComponent implements OnInit {
     
     operation.subscribe({
       next: () => this.resetForm(),
-      error: () => this.creating.set(false)
+      error: (err) => {
+        console.error('Error creating account:', err);
+        this.creating.set(false);
+      }
     });
   }
 
@@ -171,7 +179,7 @@ export class AccountsComponent implements OnInit {
   }
 
   resetForm(): void {
-    this.accountForm.reset({ port: null });
+    this.accountForm.reset({ port: 8080 });
     this.showForm.set(false);
     this.creating.set(false);
     this.editingAccount.set(null);

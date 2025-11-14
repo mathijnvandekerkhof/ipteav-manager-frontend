@@ -11,12 +11,16 @@ export interface Category {
   parentName?: string;
 }
 
-export interface SubCategory {
-  id: number;
-  name: string;
+export interface Prefix {
+  prefix: string;
+  groupCount: number;
+  totalItemCount: number;
+}
+
+export interface Group {
+  groupName: string;
+  displayName: string;
   itemCount: number;
-  parentId: number;
-  groupName?: string;
 }
 
 // Backend response interface
@@ -41,8 +45,8 @@ export interface MediaItem {
 export class ContentService {
   private readonly http = inject(HttpClient);
   
-  readonly categories = signal<Category[]>([]);
-  readonly subCategories = signal<SubCategory[]>([]);
+  readonly prefixes = signal<Prefix[]>([]);
+  readonly groups = signal<Group[]>([]);
   readonly mediaItems = signal<MediaItem[]>([]);
   readonly loading = signal(false);
   readonly loadingStatus = signal('Loading content...');
@@ -50,52 +54,18 @@ export class ContentService {
   readonly totalItems = signal(0);
   readonly hasMoreItems = signal(false);
 
-  getCategories(type?: string): Observable<Category[]> {
-    // Don't reload if we already have categories and no type filter
-    if (!type && this.categories().length > 0) {
-      return new Observable(observer => {
-        observer.next(this.categories());
-        observer.complete();
-      });
-    }
-    
+  // Niveau 1: Get prefixes
+  getPrefixes(type: string = 'LIVE'): Observable<Prefix[]> {
     this.loading.set(true);
-    this.loadingStatus.set('Fetching categories from server...');
-    const params = type ? `?type=${type}` : '';
+    this.loadingStatus.set('Loading prefixes...');
     
-    return this.http.get<{success: boolean, data: CategoryResponse[]}>(`${environment.apiUrl}/content/categories${params}`)
+    return this.http.get<{success: boolean, data: Prefix[]}>(`${environment.apiUrl}/content/prefixes?type=${type}`)
       .pipe(
         tap(response => {
-          console.log('Raw API response:', response);
-          this.loadingStatus.set('Processing categories...');
-        }),
-        map(response => {
-          const categories = response.data || [];
-          // Group by normalized name and content type to avoid duplicates
-          const grouped = categories.reduce((acc, cat) => {
-            const key = `${cat.normalizedName}-${cat.contentType}`;
-            if (!acc[key]) {
-              acc[key] = {
-                id: cat.id,
-                name: cat.normalizedName || cat.originalName,
-                type: cat.contentType,
-                itemCount: cat.itemCount
-              };
-            } else {
-              // Sum up item counts for duplicate categories
-              acc[key].itemCount += cat.itemCount;
-            }
-            return acc;
-          }, {} as Record<string, Category>);
-          return Object.values(grouped);
-        }),
-        tap(categories => {
-          console.log('Mapped categories:', categories);
-          console.log('First category:', categories[0]);
-          this.loadingStatus.set('Finalizing...');
-          this.categories.set(categories);
+          this.prefixes.set(response.data || []);
           this.loading.set(false);
         }),
+        map(response => response.data || []),
         catchError(error => {
           this.loading.set(false);
           throw error;
@@ -103,65 +73,61 @@ export class ContentService {
       );
   }
 
-  getCategoryItems(categoryId: number, page = 0, size = 100, groupName?: string): Observable<MediaItem[]> {
+  // Niveau 2: Get groups within a prefix
+  getGroupsByPrefix(prefix: string, type: string = 'LIVE'): Observable<Group[]> {
+    this.loading.set(true);
+    this.loadingStatus.set('Loading groups...');
+    
+    return this.http.get<{success: boolean, data: Group[]}>(
+      `${environment.apiUrl}/content/prefixes/${encodeURIComponent(prefix)}/groups?type=${type}`
+    ).pipe(
+      tap(response => {
+        this.groups.set(response.data || []);
+        this.loading.set(false);
+      }),
+      map(response => response.data || []),
+      catchError(error => {
+        this.loading.set(false);
+        throw error;
+      })
+    );
+  }
+  
+  // Niveau 3: Get items within a group
+  getItemsByGroup(groupTag: string, type: string = 'LIVE', page = 0, size = 50): Observable<MediaItem[]> {
     this.loading.set(true);
     this.loadingStatus.set(`Loading items (page ${page + 1})...`);
     
-    const url = groupName 
-      ? `${environment.apiUrl}/content/categories/${categoryId}/groups/${encodeURIComponent(groupName)}/items?page=${page}&size=${size}`
-      : `${environment.apiUrl}/content/categories/${categoryId}/items?page=${page}&size=${size}`;
-    
-    return this.http.get<{success: boolean, data: {content: MediaItem[], totalElements: number, totalPages: number, last: boolean}}>(url)
-      .pipe(
-        map(response => {
-          const data = response.data;
-          this.totalItems.set(data?.totalElements || 0);
-          this.currentPage.set(page);
-          this.hasMoreItems.set(!data?.last);
-          return data?.content || [];
-        }),
-        tap(items => {
-          this.loadingStatus.set('Processing items...');
-          if (page === 0) {
-            this.mediaItems.set(items);
-          } else {
-            // Append items for pagination
-            this.mediaItems.update(current => [...current, ...items]);
-          }
-          this.loading.set(false);
-        })
-      );
+    return this.http.get<{success: boolean, data: {content: MediaItem[], totalElements: number, totalPages: number, last: boolean}}>(
+      `${environment.apiUrl}/content/groups/${encodeURIComponent(groupTag)}/items?type=${type}&page=${page}&size=${size}`
+    ).pipe(
+      map(response => {
+        const data = response.data;
+        this.totalItems.set(data?.totalElements || 0);
+        this.currentPage.set(page);
+        this.hasMoreItems.set(!data?.last);
+        return data?.content || [];
+      }),
+      tap(items => {
+        if (page === 0) {
+          this.mediaItems.set(items);
+        } else {
+          this.mediaItems.update(current => [...current, ...items]);
+        }
+        this.loading.set(false);
+      }),
+      catchError(error => {
+        this.loading.set(false);
+        throw error;
+      })
+    );
   }
 
-  loadMoreItems(categoryId: number, groupName?: string): Observable<MediaItem[]> {
-    return this.getCategoryItems(categoryId, this.currentPage() + 1, 100, groupName);
+  loadMoreItems(groupTag: string, type: string = 'LIVE'): Observable<MediaItem[]> {
+    return this.getItemsByGroup(groupTag, type, this.currentPage() + 1);
   }
 
-  getSubCategories(parentCategoryId: number): Observable<SubCategory[]> {
-    this.loading.set(true);
-    this.loadingStatus.set('Loading groups...');
-    return this.http.get<{success: boolean, data: any[]}>(`${environment.apiUrl}/content/categories/${parentCategoryId}/groups`)
-      .pipe(
-        map(response => {
-          const groups = response.data || [];
-          return groups.map(group => ({
-            id: parentCategoryId, // Use parent category ID
-            name: group.displayName,
-            itemCount: group.itemCount,
-            parentId: parentCategoryId,
-            groupName: group.groupName // Store original group name for API calls
-          }));
-        }),
-        tap(subcategories => {
-          this.subCategories.set(subcategories);
-          this.loading.set(false);
-        }),
-        catchError(error => {
-          this.loading.set(false);
-          throw error;
-        })
-      );
-  }
+
 
   getMediaItem(id: number): Observable<MediaItem> {
     return this.http.get<{success: boolean, data: MediaItem}>(`${environment.apiUrl}/content/items/${id}`)

@@ -1,6 +1,6 @@
 import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ContentService, Category, SubCategory, MediaItem } from '../../core/services/content.service';
+import { ContentService, Prefix, Group, MediaItem } from '../../core/services/content.service';
 import { SyncService } from '../../core/services/sync.service';
 import { SyncStatusComponent } from '../../shared/components/sync-status/sync-status.component';
 
@@ -50,17 +50,15 @@ import { SyncStatusComponent } from '../../shared/components/sync-status/sync-st
         </div>
       }
 
-      <!-- Main Categories -->
-      @if (!selectedCategory()) {
+      <!-- Niveau 1: Prefixes -->
+      @if (!selectedPrefix() && !selectedGroup()) {
         <div class="content-grid">
-        @for (category of contentService.categories(); track category.id) {
-          <div class="category-card" (click)="selectCategory(category)">
-            <h3>{{ category.name }}</h3>
-            <p class="item-count">{{ category.itemCount }} items</p>
-            <span class="type-badge" [class]="'type-' + (category.type || 'unknown').toLowerCase()">
-              {{ category.type || 'Unknown' }}
-            </span>
-          </div>
+          @for (prefix of contentService.prefixes(); track prefix.prefix) {
+            <div class="category-card" (click)="selectPrefix(prefix)">
+              <h3>{{ prefix.prefix }}</h3>
+              <p class="item-count">{{ prefix.groupCount }} groepen • {{ prefix.totalItemCount }} items</p>
+              <span class="type-badge type-live">Prefix</span>
+            </div>
           } @empty {
             <div class="empty-state">
               <p>No content available</p>
@@ -71,25 +69,30 @@ import { SyncStatusComponent } from '../../shared/components/sync-status/sync-st
           }
         </div>
       }
-
-      <!-- Subcategories -->
-      @if (selectedCategory() && contentService.subCategories().length > 0 && !selectedSubCategory()) {
+      
+      <!-- Niveau 2: Groups within prefix -->
+      @if (selectedPrefix() && !selectedGroup()) {
         <div class="content-grid">
-          @for (subCategory of contentService.subCategories(); track subCategory.id) {
-            <div class="category-card" (click)="selectSubCategory(subCategory)">
-              <h3>{{ subCategory.name }}</h3>
-              <p class="item-count">{{ subCategory.itemCount }} items</p>
-              <span class="type-badge type-subcategory">Subcategory</span>
+          @for (group of contentService.groups(); track group.groupName) {
+            <div class="category-card" (click)="selectGroup(group)">
+              <h3>{{ group.displayName }}</h3>
+              <p class="item-count">{{ group.itemCount }} kanalen</p>
+              <span class="type-badge type-subcategory">Groep</span>
+            </div>
+          } @empty {
+            <div class="empty-state">
+              <p>No groups in this prefix</p>
             </div>
           }
         </div>
       }
 
-      @if ((selectedCategory() && contentService.mediaItems().length > 0) || selectedSubCategory()) {
+      <!-- Niveau 3: Items within group -->
+      @if (selectedGroup()) {
         <div class="media-items">
           <div class="section-header">
-            <h3>{{ selectedCategory()?.name }} - {{ selectedCategory()?.type }}</h3>
-            <button (click)="selectedCategory.set(null)" class="close-btn">×</button>
+            <h3>{{ selectedGroup()?.displayName }}</h3>
+            <button (click)="goBack()" class="close-btn">×</button>
           </div>
           
           <div class="pagination-info">
@@ -171,34 +174,27 @@ import { SyncStatusComponent } from '../../shared/components/sync-status/sync-st
 export class ContentComponent implements OnInit, OnDestroy {
   readonly contentService = inject(ContentService);
   readonly syncService = inject(SyncService);
-  readonly selectedCategory = signal<Category | null>(null);
-  readonly selectedSubCategory = signal<SubCategory | null>(null);
+  readonly selectedPrefix = signal<Prefix | null>(null);
+  readonly selectedGroup = signal<Group | null>(null);
+  readonly selectedType = signal<string>('LIVE');
   readonly breadcrumbs = signal<{name: string, action: () => void}[]>([]);
 
   ngOnInit(): void {
-    // Connect to WebSocket for real-time sync updates
     this.syncService.connect();
     
-    // Reload content when sync completes
     this.syncService.syncCompleted$.subscribe(() => {
-      console.log('Sync completed, reloading content...');
-      this.contentService.getCategories().subscribe({
-        error: (error) => console.error('Failed to reload content:', error)
-      });
+      console.log('Sync completed, reloading prefixes...');
+      this.loadPrefixes();
     });
     
-    // Only load if no categories exist
-    if (this.contentService.categories().length === 0) {
-      this.contentService.getCategories().subscribe({
-        next: (response) => {
-          console.log('Categories response:', response);
-        },
-        error: (error) => {
-          console.error('Failed to load content:', error);
-          this.contentService.loading.set(false);
-        }
-      });
-    }
+    this.loadPrefixes();
+  }
+  
+  private loadPrefixes(): void {
+    this.contentService.getPrefixes(this.selectedType()).subscribe({
+      next: (prefixes) => console.log('Prefixes loaded:', prefixes),
+      error: (error) => console.error('Failed to load prefixes:', error)
+    });
   }
   
   ngOnDestroy(): void {
@@ -206,63 +202,57 @@ export class ContentComponent implements OnInit, OnDestroy {
   }
 
   onTypeChange(event: Event): void {
-    const type = (event.target as HTMLSelectElement).value;
-    this.contentService.getCategories(type || undefined).subscribe();
+    const type = (event.target as HTMLSelectElement).value || 'LIVE';
+    this.selectedType.set(type);
+    this.goToRoot();
+    this.loadPrefixes();
   }
 
-  selectCategory(category: Category): void {
-    this.selectedCategory.set(category);
-    this.selectedSubCategory.set(null);
-    this.contentService.mediaItems.set([]);
-    this.updateBreadcrumbs([{name: category.name, action: () => this.goToCategories()}]);
-    
-    // Try to get subcategories first
-    this.contentService.getSubCategories(category.id).subscribe({
-      next: (subcategories) => {
-        if (subcategories.length > 0) {
-          // Has subcategories, show them
-          console.log('Found subcategories:', subcategories);
-        } else {
-          // No subcategories, load items directly
-          this.contentService.getCategoryItems(category.id).subscribe();
-        }
-      },
-      error: () => {
-        // Fallback to loading items directly
-        this.contentService.getCategoryItems(category.id).subscribe();
+  selectPrefix(prefix: Prefix): void {
+    this.selectedPrefix.set(prefix);
+    this.updateBreadcrumbs([{name: prefix.prefix, action: () => this.goToRoot()}]);
+    this.contentService.getGroupsByPrefix(prefix.prefix, this.selectedType()).subscribe();
+  }
+
+  selectGroup(group: Group): void {
+    this.selectedGroup.set(group);
+    const prefix = this.selectedPrefix();
+    this.updateBreadcrumbs([
+      {name: prefix?.prefix || '', action: () => this.goToRoot()},
+      {name: group.displayName, action: () => this.goBack()}
+    ]);
+    this.contentService.getItemsByGroup(group.groupName, this.selectedType()).subscribe();
+  }
+
+  goBack(): void {
+    if (this.selectedGroup()) {
+      this.selectedGroup.set(null);
+      this.contentService.mediaItems.set([]);
+      const prefix = this.selectedPrefix();
+      if (prefix) {
+        this.updateBreadcrumbs([{name: prefix.prefix, action: () => this.goToRoot()}]);
       }
-    });
-  }
-
-  selectSubCategory(subCategory: SubCategory): void {
-    this.selectedSubCategory.set(subCategory);
-    const category = this.selectedCategory();
-    if (category) {
-      this.updateBreadcrumbs([
-        {name: category.name, action: () => this.selectCategory(category)},
-        {name: subCategory.name, action: () => this.goToCategories()}
-      ]);
+    } else if (this.selectedPrefix()) {
+      this.goToRoot();
     }
-    this.contentService.getCategoryItems(subCategory.parentId, 0, 100, subCategory.groupName).subscribe();
   }
 
-  goToCategories(): void {
-    this.selectedCategory.set(null);
-    this.selectedSubCategory.set(null);
+  goToRoot(): void {
+    this.selectedPrefix.set(null);
+    this.selectedGroup.set(null);
     this.contentService.mediaItems.set([]);
-    this.contentService.subCategories.set([]);
+    this.contentService.groups.set([]);
     this.updateBreadcrumbs([]);
   }
 
   private updateBreadcrumbs(crumbs: {name: string, action: () => void}[]): void {
-    this.breadcrumbs.set([{name: 'Content', action: () => this.goToCategories()}, ...crumbs]);
+    this.breadcrumbs.set([{name: 'Content', action: () => this.goToRoot()}, ...crumbs]);
   }
 
   loadMoreItems(): void {
-    const category = this.selectedCategory();
-    const subCategory = this.selectedSubCategory();
-    if (category) {
-      this.contentService.loadMoreItems(category.id, subCategory?.groupName).subscribe();
+    const group = this.selectedGroup();
+    if (group) {
+      this.contentService.loadMoreItems(group.groupName, this.selectedType()).subscribe();
     }
   }
 
