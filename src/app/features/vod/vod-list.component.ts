@@ -166,7 +166,7 @@ export class VodListComponent implements OnInit {
   
   loadVod() {
     this.loading.set(true);
-    const params: any = {};
+    const params: any = { page: 0, size: 999999 };
     if (this.quality) params.quality = this.quality;
     if (this.platform) params.platform = this.platform;
     

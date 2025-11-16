@@ -118,7 +118,7 @@ export class SeriesListComponent implements OnInit {
   
   loadSeries() {
     this.loading.set(true);
-    this.vodService.getSeries().subscribe({
+    this.vodService.getSeries({ page: 0, size: 999999 }).subscribe({
       next: (response) => {
         this.items.set(response.data.content || []);
         this.loading.set(false);
