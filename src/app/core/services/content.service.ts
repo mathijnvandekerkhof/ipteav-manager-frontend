@@ -44,7 +44,7 @@ export interface MediaItem {
 @Injectable({ providedIn: 'root' })
 export class ContentService {
   private readonly http = inject(HttpClient);
-  
+
   readonly prefixes = signal<Prefix[]>([]);
   readonly groups = signal<Group[]>([]);
   readonly mediaItems = signal<MediaItem[]>([]);
@@ -58,7 +58,7 @@ export class ContentService {
   getPrefixes(type: string = 'LIVE'): Observable<Prefix[]> {
     this.loading.set(true);
     this.loadingStatus.set('Loading prefixes...');
-    
+
     return this.http.get<{success: boolean, data: Prefix[]}>(`${environment.apiUrl}/content/prefixes?type=${type}`)
       .pipe(
         tap(response => {
@@ -77,7 +77,7 @@ export class ContentService {
   getGroupsByPrefix(prefix: string, type: string = 'LIVE'): Observable<Group[]> {
     this.loading.set(true);
     this.loadingStatus.set('Loading groups...');
-    
+
     return this.http.get<{success: boolean, data: Group[]}>(
       `${environment.apiUrl}/content/prefixes/${encodeURIComponent(prefix)}/groups?type=${type}`
     ).pipe(
@@ -92,12 +92,12 @@ export class ContentService {
       })
     );
   }
-  
+
   // Niveau 3: Get items within a group
   getItemsByGroup(groupTag: string, type: string = 'LIVE', page = 0, size = 50): Observable<MediaItem[]> {
     this.loading.set(true);
     this.loadingStatus.set(`Loading items (page ${page + 1})...`);
-    
+
     return this.http.get<{success: boolean, data: {content: MediaItem[], totalElements: number, totalPages: number, last: boolean}}>(
       `${environment.apiUrl}/content/groups/${encodeURIComponent(groupTag)}/items?type=${type}&page=${page}&size=${size}`
     ).pipe(

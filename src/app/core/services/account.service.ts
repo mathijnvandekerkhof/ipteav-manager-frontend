@@ -81,4 +81,8 @@ export class AccountService {
         })
       );
   }
+
+  downloadPlaylist(): Observable<{success: boolean, data: string}> {
+    return this.http.post<{success: boolean, data: string}>(`${environment.apiUrl}/playlist/download`, {});
+  }
 }

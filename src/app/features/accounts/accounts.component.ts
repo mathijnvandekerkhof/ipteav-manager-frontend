@@ -55,6 +55,9 @@ import { AccountService, Account, CreateAccountRequest } from '../../core/servic
                 </button>
               } @else {
                 <span class="status active">Active</span>
+                <button (click)="downloadPlaylist()" class="download-btn">
+                  Download
+                </button>
               }
               
 
@@ -92,7 +95,7 @@ import { AccountService, Account, CreateAccountRequest } from '../../core/servic
     .account-info p { margin: 0.25rem 0; color: #ccc; font-size: 0.9rem; }
     .account-actions { display: flex; gap: 1rem; align-items: center; }
     .activate-btn { padding: 8px 16px; background: var(--primary, #1976d2); color: white; border: none; border-radius: 4px; cursor: pointer; }
-
+    .download-btn { padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; }
     .edit-btn { padding: 8px 16px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; }
     .delete-btn { padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; }
 
@@ -189,5 +192,12 @@ export class AccountsComponent implements OnInit {
     if (confirm('Delete this account?')) {
       this.accountService.deleteAccount(id).subscribe();
     }
+  }
+
+  downloadPlaylist(): void {
+    this.accountService.downloadPlaylist().subscribe({
+      next: () => alert('Download gestart! Check de downloads folder.'),
+      error: (err) => alert('Download failed: ' + err.message)
+    });
   }
 }

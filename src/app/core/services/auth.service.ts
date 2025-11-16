@@ -31,10 +31,10 @@ export interface AuthResponse {
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
-  
+
   private readonly _user = signal<AuthResponse['user'] | null>(null);
   private readonly _token = signal<string | null>(null);
-  
+
   readonly user = this._user.asReadonly();
   readonly token = this._token.asReadonly();
   readonly isAuthenticated = computed(() => !!this._token());
@@ -83,7 +83,7 @@ export class AuthService {
   private loadFromStorage(): void {
     const token = localStorage.getItem('token');
     const userStr = localStorage.getItem('user');
-    
+
     if (token && userStr && userStr !== 'undefined') {
       try {
         this._token.set(token);
