@@ -1,43 +1,33 @@
-import { Injectable, signal, computed, effect, inject, DestroyRef } from '@angular/core';
+import { Injectable, signal, effect } from '@angular/core';
 
-export enum AppTheme {
-  SMARTERS = 'smarters',
-  TIVIMATE = 'tivimate'
-}
+export type Theme = 'tivimate' | 'smarters';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly THEME_KEY = 'app_theme';
   
-  readonly currentTheme = signal<AppTheme>(
-    this.getStoredTheme() || AppTheme.SMARTERS
-  );
-
-  readonly isDarkMode = computed(() => 
-    this.currentTheme() !== AppTheme.SMARTERS
-  );
+  currentTheme = signal<Theme>(this.getThemeFromStorage());
 
   constructor() {
-    // Apply initial theme
-    document.body.className = `theme-${this.currentTheme()}`;
-    
-    // Watch for theme changes
-    this.destroyRef.onDestroy(() => {
-      // Cleanup if needed
+    effect(() => {
+      const theme = this.currentTheme();
+      document.body.className = `theme-${theme}`;
+      localStorage.setItem(this.THEME_KEY, theme);
     });
   }
-  
-  private applyTheme(): void {
-    document.body.className = `theme-${this.currentTheme()}`;
+
+  toggleTheme() {
+    this.currentTheme.update(current => 
+      current === 'tivimate' ? 'smarters' : 'tivimate'
+    );
   }
 
-  setTheme(theme: AppTheme): void {
+  setTheme(theme: Theme) {
     this.currentTheme.set(theme);
-    localStorage.setItem('app-theme', theme);
-    this.applyTheme();
   }
 
-  private getStoredTheme(): AppTheme | null {
-    return localStorage.getItem('app-theme') as AppTheme;
+  private getThemeFromStorage(): Theme {
+    const stored = localStorage.getItem(this.THEME_KEY);
+    return (stored === 'smarters' || stored === 'tivimate') ? stored : 'tivimate';
   }
 }

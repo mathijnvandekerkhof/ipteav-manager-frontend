@@ -1,47 +1,61 @@
-import { Component, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
+import { ThemeService } from '../../core/services/theme.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [
+    FormsModule,
+    MatCardModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MatIconModule
+  ],
   template: `
     <div class="login-container">
-      <div class="login-card">
-        <h1>IPTeaV Manager</h1>
-        
-        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-          <div class="form-group">
-            <input 
-              type="text" 
-              formControlName="username" 
-              placeholder="Username"
-              [class.error]="loginForm.get('username')?.invalid && loginForm.get('username')?.touched">
-          </div>
-          
-          <div class="form-group">
-            <input 
-              type="password" 
-              formControlName="password" 
-              placeholder="Password"
-              [class.error]="loginForm.get('password')?.invalid && loginForm.get('password')?.touched">
-          </div>
-          
-          @if (errorMessage()) {
-            <div class="error-message">{{ errorMessage() }}</div>
-          }
-          
-          <button 
-            type="submit" 
-            [disabled]="loginForm.invalid || loading()"
-            class="login-btn">
-            {{ loading() ? 'Logging in...' : 'Login' }}
+      <mat-card class="login-card">
+        <mat-card-header>
+          <mat-card-title>IPTeaV Manager</mat-card-title>
+          <button mat-icon-button (click)="themeService.toggleTheme()" class="theme-toggle">
+            <mat-icon>{{ themeService.currentTheme() === 'tivimate' ? 'dark_mode' : 'light_mode' }}</mat-icon>
           </button>
-        </form>
-      </div>
+        </mat-card-header>
+        
+        <mat-card-content>
+          <form (ngSubmit)="onLogin()">
+            <mat-form-field appearance="outline">
+              <mat-label>Username</mat-label>
+              <input matInput [(ngModel)]="username" name="username" required>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Password</mat-label>
+              <input matInput type="password" [(ngModel)]="password" name="password" required>
+            </mat-form-field>
+
+            @if (error()) {
+              <div class="error">{{ error() }}</div>
+            }
+
+            <button mat-raised-button color="primary" type="submit" [disabled]="loading()">
+              {{ loading() ? 'Logging in...' : 'Login' }}
+            </button>
+
+            <button mat-button type="button" (click)="goToRegister()">
+              Don't have an account? Register
+            </button>
+          </form>
+        </mat-card-content>
+      </mat-card>
     </div>
   `,
   styles: [`
@@ -50,98 +64,82 @@ import { AuthService } from '../../core/services/auth.service';
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      background: var(--background, #121212);
+      padding: 20px;
     }
-    
+
     .login-card {
-      background: var(--surface, #1e1e1e);
-      padding: 2rem;
-      border-radius: var(--card-radius, 12px);
       width: 100%;
       max-width: 400px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     }
-    
-    h1 {
-      text-align: center;
-      color: var(--primary, #1976d2);
-      margin-bottom: 2rem;
+
+    mat-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
     }
-    
-    .form-group {
-      margin-bottom: 1rem;
+
+    .theme-toggle {
+      margin-left: auto;
     }
-    
-    input {
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    mat-form-field {
       width: 100%;
-      padding: 12px;
-      border: 1px solid #333;
-      border-radius: 8px;
-      background: var(--background, #121212);
-      color: white;
-      font-size: 16px;
     }
-    
-    input.error {
-      border-color: #f44336;
-    }
-    
-    .login-btn {
-      width: 100%;
-      padding: 12px;
-      background: var(--primary, #1976d2);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    
-    .login-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    
-    .error-message {
+
+    .error {
       color: #f44336;
-      text-align: center;
-      margin-bottom: 1rem;
+      font-size: 14px;
+      margin-top: -8px;
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      height: 48px;
     }
   `]
 })
 export class LoginComponent {
-  private readonly fb = inject(FormBuilder);
-  private readonly authService = inject(AuthService);
-  private readonly router = inject(Router);
-  
-  readonly loading = signal(false);
-  readonly errorMessage = signal('');
-  
-  readonly loginForm = this.fb.nonNullable.group({
-    username: ['', Validators.required],
-    password: ['', Validators.required]
-  });
+  username = '';
+  password = '';
+  loading = signal(false);
+  error = signal('');
 
+  constructor(
+    private authService: AuthService,
+    public themeService: ThemeService,
+    private router: Router
+  ) {}
 
+  onLogin() {
+    if (!this.username || !this.password) {
+      this.error.set('Please enter username and password');
+      return;
+    }
 
-  onSubmit(): void {
-    if (this.loginForm.invalid) return;
-    
     this.loading.set(true);
-    this.errorMessage.set('');
-    console.log('Attempting login...');
-    
-    this.authService.login(this.loginForm.getRawValue()).subscribe({
-      next: (response) => {
-        console.log('Login successful:', response);
-        this.router.navigate(['/dashboard']);
-      },
-      error: (error) => {
-        console.error('Login failed:', error);
-        this.errorMessage.set('Invalid username or password');
-        this.loading.set(false);
-      }
-    });
+    this.error.set('');
+
+    this.authService.login({ username: this.username, password: this.password })
+      .subscribe({
+        next: () => {
+          this.loading.set(false);
+          this.router.navigate(['/content']);
+        },
+        error: (err) => {
+          this.loading.set(false);
+          this.error.set(err.error?.message || 'Login failed');
+        }
+      });
+  }
+
+  goToRegister() {
+    this.router.navigate(['/register']);
   }
 }

@@ -1,0 +1,35 @@
+// Smarters Theme - Purple/gradient style
+.theme-smarters {
+  --bg-primary: #0f0f1e;
+  --bg-secondary: #1a1a2e;
+  --bg-card: #16213e;
+  --text-primary: #ffffff;
+  --text-secondary: #a8a8b8;
+  --accent: #9c27b0;
+  --accent-hover: #7b1fa2;
+  --border: #2a2a4e;
+  --error: #f44336;
+
+  background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 100%);
+  color: var(--text-primary);
+
+  mat-card {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .mat-mdc-raised-button.mat-primary {
+    background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+    
+    &:hover {
+      background: linear-gradient(135deg, #7b1fa2 0%, #6a1b9a 100%);
+    }
+  }
+
+  .mat-mdc-form-field {
+    .mat-mdc-text-field-wrapper {
+      background-color: var(--bg-secondary);
+    }
+  }
+}

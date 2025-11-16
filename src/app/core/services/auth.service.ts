@@ -1,97 +1,54 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap, catchError, map, of } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-
-export interface LoginRequest {
-  username: string;
-  password: string;
-}
-
-export interface BackendResponse {
-  success: boolean;
-  data: AuthResponse;
-  message: string;
-  timestamp: string;
-}
-
-export interface AuthResponse {
-  token: string;
-  refreshToken: string;
-  user: {
-    id: number;
-    username: string;
-    email: string;
-    role: string;
-  };
-}
+import { LoginRequest, AuthResponse, User } from '../models/auth.model';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly http = inject(HttpClient);
-  private readonly router = inject(Router);
+  private readonly TOKEN_KEY = 'jwt_token';
+  private readonly USER_KEY = 'user';
+  
+  currentUser = signal<User | null>(this.getUserFromStorage());
 
-  private readonly _user = signal<AuthResponse['user'] | null>(null);
-  private readonly _token = signal<string | null>(null);
+  constructor(
+    private http: HttpClient,
+    private router: Router
+  ) {}
 
-  readonly user = this._user.asReadonly();
-  readonly token = this._token.asReadonly();
-  readonly isAuthenticated = computed(() => !!this._token());
-  readonly isAdmin = computed(() => this._user()?.role === 'ADMIN');
-
-  constructor() {
-    this.loadFromStorage();
+  login(credentials: LoginRequest) {
+    return this.http.post<any>(`${environment.apiUrl}/auth/login`, credentials)
+      .pipe(tap(response => {
+        const data = response.data;
+        localStorage.setItem(this.TOKEN_KEY, data.token);
+        localStorage.setItem(this.USER_KEY, JSON.stringify(data.user));
+        this.currentUser.set(data.user);
+      }));
   }
 
-  login(credentials: LoginRequest): Observable<AuthResponse> {
-    console.log('AuthService: Making login request to:', `${environment.apiUrl}/auth/login`);
-    return this.http.post<BackendResponse>(`${environment.apiUrl}/auth/login`, credentials)
-      .pipe(
-        tap(response => {
-          console.log('AuthService: Login response received:', response);
-          this.setAuth(response.data);
-        }),
-        map(response => response.data),
-        catchError(error => {
-          console.error('AuthService: Login failed:', error);
-          throw error;
-        })
-      );
-  }
-
-  logout(): void {
-    this.http.post(`${environment.apiUrl}/auth/logout`, {}).subscribe();
-    this.clearAuth();
+  logout() {
+    localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.USER_KEY);
+    this.currentUser.set(null);
     this.router.navigate(['/login']);
   }
 
-  private setAuth(response: AuthResponse): void {
-    this._token.set(response.token);
-    this._user.set(response.user);
-    localStorage.setItem('token', response.token);
-    localStorage.setItem('user', JSON.stringify(response.user));
+  getToken(): string | null {
+    return localStorage.getItem(this.TOKEN_KEY);
   }
 
-  private clearAuth(): void {
-    this._token.set(null);
-    this._user.set(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  isAuthenticated(): boolean {
+    return !!this.getToken();
   }
 
-  private loadFromStorage(): void {
-    const token = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
-
-    if (token && userStr && userStr !== 'undefined') {
-      try {
-        this._token.set(token);
-        this._user.set(JSON.parse(userStr));
-      } catch (error) {
-        console.warn('Invalid user data in localStorage, clearing...');
-        this.clearAuth();
-      }
+  private getUserFromStorage(): User | null {
+    const userJson = localStorage.getItem(this.USER_KEY);
+    if (!userJson || userJson === 'undefined') return null;
+    try {
+      return JSON.parse(userJson);
+    } catch {
+      return null;
     }
   }
 }
